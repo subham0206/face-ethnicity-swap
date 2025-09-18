@@ -13,7 +13,14 @@ load_dotenv()
 
 # Initialize OpenAI client with secure key retrieval
 openai_api_key = get_api_key("openai")
-client = openai.OpenAI(api_key=openai_api_key)
+
+# Initialize the OpenAI client only if we have a valid API key
+client = None
+if openai_api_key:
+    try:
+        client = openai.OpenAI(api_key=openai_api_key)
+    except Exception as e:
+        print(f"Error initializing OpenAI client: {str(e)}")
 
 def generate_image_swap(
     original_image_path, 
@@ -44,6 +51,11 @@ def generate_image_swap(
         If generate_multiple_poses=False: PIL Image object of the generated image
         If generate_multiple_poses=True: Dictionary with PIL Image objects for different poses
     """
+    # Check if OpenAI client is initialized
+    if not client:
+        print("OpenAI client is not initialized. Check if API key is provided.")
+        return None
+        
     try:
         # Convert image to base64 for API
         with open(original_image_path, "rb") as img_file:

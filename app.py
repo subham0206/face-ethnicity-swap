@@ -94,7 +94,35 @@ with left_col:
         st.session_state.api_keys_checked = True
         
         if not (api_status["openai"] or api_status["google"]):
-            st.error("No valid API keys found. Please make sure your API keys are correctly set up in the .env file.")
+            st.error("No valid API keys found. This app requires API keys to function properly.")
+            st.warning("""
+            ### How to Add API Keys:
+            
+            #### For Local Development:
+            1. Create a `.env` file in the root directory of this project
+            2. Add your API keys in the following format:
+               ```
+               OPENAI_API_KEY=your-openai-key
+               GOOGLE_API_KEY=your-google-key
+               ```
+               
+            #### For Streamlit Cloud Deployment:
+            1. Go to your app settings in the Streamlit Cloud dashboard
+            2. Navigate to "Secrets" section
+            3. Add your API keys in the following format:
+               ```
+               OPENAI_API_KEY = "your-openai-key"
+               GOOGLE_API_KEY = "your-google-key"
+               ```
+               
+            At least one API key is required. The app will use available services based on which keys are provided.
+            """)
+        elif not api_status["openai"]:
+            st.warning("OpenAI API key not found. Some features will be limited to Google AI services only.")
+        elif not api_status["google"]:
+            st.warning("Google API key not found. Some features will be limited to OpenAI services only.")
+        else:
+            st.success("API keys validated successfully!")
     
     # Upload image section
     st.markdown('<p class="section-title">1. Upload Image & Specify Type</p>', unsafe_allow_html=True)
