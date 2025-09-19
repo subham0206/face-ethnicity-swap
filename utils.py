@@ -233,16 +233,35 @@ def get_available_swatches():
     Returns:
         Dictionary with swatch name as key and path as value
     """
-    swatches_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "swatches")
     swatches = {}
     
-    if os.path.exists(swatches_dir):
-        for filename in os.listdir(swatches_dir):
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg')) and not filename.startswith('.'):
-                # Extract color name from filename
-                color_name = filename.replace("PNG-", "").replace(".png", "").replace(".jpg", "").replace(".jpeg", "")
-                file_path = os.path.join(swatches_dir, filename)
-                swatches[color_name] = file_path
+    # Try multiple possible paths for the swatches directory
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "swatches"),  # Local development
+        os.path.join(os.getcwd(), "swatches"),  # Current working directory
+        "/mount/src/face-ethnicity-swap/swatches",  # Streamlit Cloud path from error
+        "swatches"  # Relative path
+    ]
+    
+    swatches_dir = None
+    for path in possible_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            swatches_dir = path
+            break
+    
+    if swatches_dir:
+        print(f"Found swatches directory at: {swatches_dir}")
+        try:
+            for filename in os.listdir(swatches_dir):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg')) and not filename.startswith('.'):
+                    # Extract color name from filename
+                    color_name = filename.replace("PNG-", "").replace(".png", "").replace(".jpg", "").replace(".jpeg", "")
+                    file_path = os.path.join(swatches_dir, filename)
+                    swatches[color_name] = file_path
+        except Exception as e:
+            print(f"Error listing swatches directory: {str(e)}")
+    else:
+        print(f"Could not find swatches directory. Tried paths: {possible_paths}")
     
     return swatches
 
