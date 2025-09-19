@@ -32,7 +32,8 @@ def generate_image_swap(
     predefined_model_id=None,
     predefined_model_gender=None,
     swap_skin_and_hair=True,  # Parameter to toggle enhanced swapping
-    generate_multiple_poses=False  # New parameter to generate multiple poses
+    generate_multiple_poses=False,  # Parameter to generate multiple poses
+    use_white_background=False  # Parameter to toggle white background
 ):
     """
     Generate a fashion model image by swapping model's face, skin tone, and optionally hairstyle,
@@ -52,14 +53,18 @@ def generate_image_swap(
         predefined_model_gender: Gender of the predefined model
         swap_skin_and_hair: Whether to also swap skin tone and hairstyle (True) or just face (False)
         generate_multiple_poses: Whether to generate the model in multiple poses/angles
+        use_white_background: Whether to use white background instead of light grey
     
     Returns:
         If generate_multiple_poses=False: PIL Image object of the generated image with swapped features
         If generate_multiple_poses=True: Dictionary with PIL Image objects for different poses
     """
     try:
-        # Create an ImagenHandler instance
-        imagen_handler = ImagenHandler(os.getenv("GOOGLE_API_KEY"))
+        # Debug logging
+        print(f"DEBUG: Starting image generation with source image: {original_image_path}")
+        
+        # Create an ImagenHandler instance with the same API key used for configuration
+        imagen_handler = ImagenHandler(google_api_key)
         
         # First determine what kind of swap we're doing
         if use_predefined_model and predefined_model_id and predefined_model_gender:
@@ -75,6 +80,15 @@ def generate_image_swap(
                 # Add any specific features from the model description
                 model_features = model_info.get('description', '')
                 
+                # Add default "no tattoos" requirement to additional features
+                model_instructions = f"Features similar to {model_info['name']} model: {model_features}"
+                if additional_features:
+                    user_instructions = f"User instructions: {additional_features}"
+                else:
+                    user_instructions = "No tattoos or identifying marks."
+                
+                full_additional_features = f"{model_instructions}. {user_instructions}"
+                
                 if swap_skin_and_hair:
                     # Perform complete swap using the ethnicity/features from the predefined model
                     print(f"Performing full swap (face, skin tone, and hair) with ethnicity: {features['ethnicity']}, skin tone: {features['skin_tone']}, hairstyle: {features['hairstyle']}")
@@ -85,7 +99,8 @@ def generate_image_swap(
                         ethnicity=features['ethnicity'] or model_info['name'].split('–')[0].strip(),
                         skin_tone=features['skin_tone'] or skin_color,
                         hairstyle=features['hairstyle'],
-                        additional_features=f"Features similar to {model_info['name']} model: {model_features}" + (f". User instructions: {additional_features}" if additional_features else "")
+                        additional_features=full_additional_features,
+                        use_white_background=use_white_background
                     )
                     
                     if generate_multiple_poses and front_view_img:
@@ -105,7 +120,8 @@ def generate_image_swap(
                             ethnicity=features['ethnicity'] or model_info['name'].split('–')[0].strip(),
                             skin_tone=features['skin_tone'] or skin_color,
                             hairstyle=features['hairstyle'],
-                            additional_features=f"Features similar to {model_info['name']} model: {model_features}" + (f". User instructions: {additional_features}" if additional_features else "")
+                            additional_features=full_additional_features,
+                            use_white_background=use_white_background
                         )
                         
                         # Add the other poses to the result dictionary
@@ -125,7 +141,8 @@ def generate_image_swap(
                         original_model_image_path=original_image_path,
                         ethnicity=features['ethnicity'] or model_info['name'].split('–')[0].strip(),
                         skin_tone=features['skin_tone'] or skin_color,
-                        additional_features=f"Features similar to {model_info['name']} model: {model_features}" + (f". User instructions: {additional_features}" if additional_features else "")
+                        additional_features=full_additional_features,
+                        use_white_background=use_white_background
                     )
                     
                     if generate_multiple_poses and front_view_img:
@@ -143,7 +160,8 @@ def generate_image_swap(
                             temp_path,
                             ethnicity=features['ethnicity'] or model_info['name'].split('–')[0].strip(),
                             skin_tone=features['skin_tone'] or skin_color,
-                            additional_features=f"Features similar to {model_info['name']} model: {model_features}" + (f". User instructions: {additional_features}" if additional_features else "")
+                            additional_features=full_additional_features,
+                            use_white_background=use_white_background
                         )
                         
                         if other_poses:
@@ -163,12 +181,16 @@ def generate_image_swap(
             # Enhanced swap including face, skin tone, and hairstyle
             print(f"Performing enhanced swap with ethnicity: {ethnicity}, skin tone: {skin_color}, hairstyle: {hairstyle}")
             
+            # Add default "no tattoos" requirement if no additional features provided
+            final_additional_features = additional_features if additional_features else "No tattoos or identifying marks."
+            
             front_view_img = imagen_handler.swap_face_skin_hair(
                 original_model_image_path=original_image_path,
                 ethnicity=ethnicity,
                 skin_tone=skin_color,
                 hairstyle=hairstyle,
-                additional_features=additional_features
+                additional_features=final_additional_features,
+                use_white_background=use_white_background
             )
             
             if generate_multiple_poses and front_view_img:
@@ -187,7 +209,8 @@ def generate_image_swap(
                     ethnicity=ethnicity,
                     skin_tone=skin_color,
                     hairstyle=hairstyle,
-                    additional_features=additional_features
+                    additional_features=final_additional_features,
+                    use_white_background=use_white_background
                 )
                 
                 if other_poses:
@@ -202,11 +225,15 @@ def generate_image_swap(
             # Original face-only swap
             print(f"Performing face-only swap with ethnicity: {ethnicity}, skin tone: {skin_color}")
             
+            # Add default "no tattoos" requirement if no additional features provided
+            final_additional_features = additional_features if additional_features else "No tattoos or identifying marks."
+            
             front_view_img = imagen_handler.swap_face_only(
                 original_model_image_path=original_image_path,
                 ethnicity=ethnicity,
                 skin_tone=skin_color,
-                additional_features=additional_features
+                additional_features=final_additional_features,
+                use_white_background=use_white_background
             )
             
             if generate_multiple_poses and front_view_img:
@@ -224,7 +251,8 @@ def generate_image_swap(
                     temp_path,
                     ethnicity=ethnicity,
                     skin_tone=skin_color,
-                    additional_features=additional_features
+                    additional_features=final_additional_features,
+                    use_white_background=use_white_background
                 )
                 
                 if other_poses:
@@ -238,4 +266,38 @@ def generate_image_swap(
         
     except Exception as e:
         print(f"Error generating image with Google AI: {str(e)}")
+        return None
+
+def change_apparel_color(
+    image_path,
+    swatch_path,
+    apparel_type="top"
+):
+    """
+    Change the color of an apparel item in an image to match a color swatch
+    
+    Args:
+        image_path: Path to the original image containing the apparel
+        swatch_path: Path to the color swatch image
+        apparel_type: Type of apparel to change (e.g., "top", "hoodie", "t-shirt")
+    
+    Returns:
+        PIL Image object of the generated image with color-changed apparel
+    """
+    try:
+        # Create an ImagenHandler instance with the validated API key
+        imagen_handler = ImagenHandler(google_api_key)
+        
+        # Change the apparel color using the handler
+        print(f"Changing {apparel_type} color using swatch: {os.path.basename(swatch_path)}")
+        color_changed_img = imagen_handler.change_apparel_color(
+            image_path=image_path,
+            swatch_path=swatch_path,
+            apparel_type=apparel_type
+        )
+        
+        return color_changed_img
+        
+    except Exception as e:
+        print(f"Error changing apparel color with Google AI: {str(e)}")
         return None

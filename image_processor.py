@@ -4,6 +4,7 @@ from PIL import Image
 import uuid
 import numpy as np
 import math
+import hashlib
 
 def save_uploaded_image(uploaded_file):
     """
@@ -128,6 +129,65 @@ def save_multiple_pose_images(pose_images, output_dir=None):
     except Exception as e:
         print(f"Error saving multiple pose images: {str(e)}")
         return {}
+
+def hash_file_path(file_path):
+    """
+    Create a simple hash of a file path to use in reference filenames
+    
+    Args:
+        file_path: Path to hash
+        
+    Returns:
+        String hash representation
+    """
+    return hashlib.md5(file_path.encode()).hexdigest()[:10]
+
+def save_color_changed_image(image, color_name, original_path, output_dir=None):
+    """
+    Save a color-changed image to disk
+    
+    Args:
+        image: PIL Image object with changed color
+        color_name: Name of the color used
+        original_path: Path to the original image file (used to derive name)
+        output_dir: Directory to save the image (uses temp directory if None)
+    
+    Returns:
+        Path to the saved image file
+    """
+    try:
+        # Create output directory if it doesn't exist or use temp directory
+        if output_dir is None:
+            output_dir = os.path.join(tempfile.gettempdir(), "face_ethnicity_swap", "output")
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate a unique but descriptive filename
+        base_name = os.path.splitext(os.path.basename(original_path))[0]
+        filename = f"{base_name}_{color_name}_{uuid.uuid4().hex[:8]}.png"
+        file_path = os.path.join(output_dir, filename)
+        
+        # Save the image
+        image.save(file_path)
+        
+        return file_path
+    except Exception as e:
+        print(f"Error saving color-changed image: {str(e)}")
+        return None
+
+def get_last_color_changed_image(original_image_path=None):
+    """
+    Get the path to the last color-changed image
+    
+    Args:
+        original_image_path: Path to the original image to find its color-changed version (not used)
+        
+    Returns:
+        Path to the last color-changed image or None
+    """
+    # Simple implementation that doesn't try to match with original image
+    # Just return None to reset the color changed image every time
+    return None
 
 def extract_model_features(model_info):
     """

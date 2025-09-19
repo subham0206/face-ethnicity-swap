@@ -1,5 +1,55 @@
-.env
+# Python
 __pycache__/
 *.py[cod]
-*.class
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# API keys and secrets
+.env
+*.pem
+config.ini
+
+# Logs
+*.log
+logs/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Mac OS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Application specific
+uploads/*
+!uploads/.gitkeep
+results/*
+!results/.gitkeep
+temp/

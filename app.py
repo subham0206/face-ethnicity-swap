@@ -55,6 +55,21 @@ st.markdown("""
         padding: 10px;
         background-color: #f9f9f9;
     }
+    .swatch-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .swatch-item {
+        width: 50px;
+        height: 50px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    .swatch-item.selected {
+        border: 2px solid #FF4B4B;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,6 +100,14 @@ if "selected_gender" not in st.session_state:
     st.session_state.selected_gender = "Male"
 if "selected_model_id" not in st.session_state:
     st.session_state.selected_model_id = None
+if "selected_swatch" not in st.session_state:
+    st.session_state.selected_swatch = None
+if "apparel_type" not in st.session_state:
+    st.session_state.apparel_type = "top"
+if "color_changed_image" not in st.session_state:
+    st.session_state.color_changed_image = None
+if "use_white_background" not in st.session_state:
+    st.session_state.use_white_background = False
 
 # Left column - Input controls
 with left_col:
@@ -144,6 +167,8 @@ with left_col:
         # Save uploaded file and display
         st.session_state.uploaded_image_path = image_processor.save_uploaded_image(uploaded_file)
         st.session_state.generated_image = None  # Reset generated image
+        st.session_state.color_changed_image = None  # Reset color-changed image
+        st.session_state.selected_swatch = None  # Reset selected swatch
         st.success("Image uploaded successfully!")
     
     # Model selection section
@@ -224,11 +249,49 @@ with left_col:
             help="Toggle ON to generate the model in four different angles (front, ¾ view, profile, back view)"
         )
         
+        st.session_state.use_white_background = st.toggle(
+            "Use white background instead of light grey",
+            value=False,
+            help="Toggle ON to use a white background instead of the default light grey background"
+        )
+        
         additional_features = st.text_area(
             "Additional Features or Instructions",
             placeholder="E.g., specific eye color, facial features, etc.",
             help="Add any additional details or instructions for the AI model"
         )
+    
+    # Color swatch selection section - make it collapsible
+    with st.expander("Apparel Color Options", expanded=False):
+        # Get available swatches
+        available_swatches = utils.get_available_swatches()
+        if available_swatches:
+            # Apparel type selection
+            st.session_state.apparel_type = st.selectbox(
+                "Apparel Type", 
+                ["top", "hoodie", "t-shirt", "crop top", "sweater", "shirt", "blouse", "tank top"]
+            )
+            
+            # Display color swatches in a grid
+            st.write("Select a color swatch:")
+            
+            # Create a 3-column grid for swatches
+            swatch_cols = st.columns(3)
+            
+            for i, (color_name, swatch_path) in enumerate(available_swatches.items()):
+                col_index = i % 3
+                with swatch_cols[col_index]:
+                    # Create a container for the swatch with name below
+                    st.image(swatch_path, caption=color_name, width=80)
+                    if st.button(f"Select {color_name}", key=f"swatch_{color_name}"):
+                        st.session_state.selected_swatch = {"name": color_name, "path": swatch_path}
+                        st.success(f"Selected color: {color_name}. It will be applied automatically when you generate the transformed image.")
+            
+            # Show selected swatch info if one is selected
+            if st.session_state.selected_swatch:
+                st.info(f"Selected color '{st.session_state.selected_swatch['name']}' will be applied when you click 'Generate Transformed Image'")
+        else:
+            st.warning("No color swatches found in the swatches directory.")
     
     # Generate button
     generate_btn = st.button(
@@ -238,6 +301,51 @@ with left_col:
     )
     
     if generate_btn:
+        # If a swatch is selected, apply the color change before generating the image
+        if st.session_state.selected_swatch and st.session_state.uploaded_image_path:
+            with st.spinner(f"Applying {st.session_state.selected_swatch['name']} color to apparel..."):
+                try:
+                    print(f"DEBUG: Automatically applying color to apparel using source image: {st.session_state.uploaded_image_path}")
+                    # Apply the color change using the selected swatch
+                    color_changed_img = google_integration.change_apparel_color(
+                        st.session_state.uploaded_image_path,
+                        st.session_state.selected_swatch['path'],
+                        st.session_state.apparel_type
+                    )
+                    
+                    if color_changed_img:
+                        # Save the color-changed image
+                        output_path = image_processor.save_color_changed_image(
+                            color_changed_img,
+                            st.session_state.selected_swatch['name'],
+                            st.session_state.uploaded_image_path
+                        )
+                        print(f"DEBUG: Saved color-changed image to: {output_path}")
+                        st.session_state.color_changed_image = output_path
+                        # Use the color-changed image for further processing
+                        st.session_state.source_image_for_generation = output_path
+                        print(f"DEBUG: Set source image for generation to color-changed image: {output_path}")
+                        # Display a success message
+                        st.success(f"Successfully applied {st.session_state.selected_swatch['name']} color to the {st.session_state.apparel_type}.")
+                    else:
+                        st.warning("Failed to apply the selected color. Proceeding with the original image.")
+                        st.session_state.color_changed_image = None
+                        st.session_state.source_image_for_generation = st.session_state.uploaded_image_path
+                except Exception as e:
+                    print(f"DEBUG: Error in auto color change: {str(e)}")
+                    st.warning(f"Could not apply the selected color due to an error. Proceeding with the original image.")
+                    st.session_state.color_changed_image = None
+                    st.session_state.source_image_for_generation = st.session_state.uploaded_image_path
+        else:
+            # No color change requested, use original image
+            st.session_state.source_image_for_generation = st.session_state.uploaded_image_path
+                    
+        # Debug output of available images
+        print(f"DEBUG - When Generate button pressed:")
+        print(f"DEBUG - Uploaded image path: {st.session_state.uploaded_image_path}")
+        print(f"DEBUG - Source image for generation: {st.session_state.source_image_for_generation}")
+        print(f"DEBUG - Generated image path: {st.session_state.generated_image}")
+        print(f"DEBUG - Color-changed image path: {st.session_state.color_changed_image}")
         st.session_state.processing = True
 
 # Right column - Display results
@@ -247,11 +355,20 @@ with right_col:
     # Display original image
     with tabs[0]:
         if st.session_state.uploaded_image_path is not None:
-            st.image(
-                st.session_state.uploaded_image_path, 
-                caption="Original Image", 
-                use_column_width=True
-            )
+            if st.session_state.color_changed_image is not None:
+                # If color was changed, show color-changed image instead
+                st.image(
+                    st.session_state.color_changed_image, 
+                    caption="Original Image with Color Applied", 
+                    use_column_width=True
+                )
+                st.info("Showing image with selected color applied")
+            else:
+                st.image(
+                    st.session_state.uploaded_image_path, 
+                    caption="Original Image", 
+                    use_column_width=True
+                )
         else:
             st.info("Please upload an image to get started.")
     
@@ -271,14 +388,18 @@ with right_col:
                             st.session_state.processing = False
                         else:
                             # Use Google for predefined model apparel swapping
+                            # Use color-changed image if available, otherwise use original image
+                            source_image = st.session_state.source_image_for_generation
+                            print(f"DEBUG: Using source image for generation: {source_image}")
                             generated_result = google_integration.generate_image_swap(
-                                st.session_state.uploaded_image_path,
+                                source_image,
                                 additional_features=additional_features,
                                 use_predefined_model=True,
                                 predefined_model_id=st.session_state.selected_model_id,
                                 predefined_model_gender=st.session_state.selected_gender,
                                 swap_skin_and_hair=swap_skin_and_hair,
-                                generate_multiple_poses=generate_multiple_poses
+                                generate_multiple_poses=generate_multiple_poses,
+                                use_white_background=st.session_state.use_white_background
                             )
                             
                             if generated_result is not None:
@@ -290,41 +411,42 @@ with right_col:
                                     # Set front view as the main generated image
                                     if "front" in output_paths:
                                         st.session_state.generated_image = output_paths["front"]
-                                else:
-                                    # Single image
-                                    output_path = image_processor.save_result_image(generated_result)
-                                    st.session_state.generated_image = output_path
-                                    st.session_state.generated_images = {"front": output_path}
-                            else:
-                                st.error("Failed to generate image using predefined model. The system will try to generate from scratch.")
-                                
-                                # Always use Google for generation
-                                generated_result = google_integration.generate_image_swap(
-                                    st.session_state.uploaded_image_path,
-                                    "Custom", # Placeholder
-                                    "Custom", # Placeholder
-                                    "Custom", # Placeholder
-                                    "Custom", # Placeholder
-                                    "Custom", # Placeholder
-                                    additional_features,
-                                    swap_skin_and_hair=swap_skin_and_hair,
-                                    generate_multiple_poses=generate_multiple_poses
-                                )
-                                
-                                if generated_result is not None:
-                                    # Check if we got multiple poses or just one image
-                                    if isinstance(generated_result, dict):
-                                        # Multiple poses
-                                        output_paths = image_processor.save_multiple_pose_images(generated_result)
-                                        st.session_state.generated_images = output_paths
-                                        # Set front view as the main generated image
-                                        if "front" in output_paths:
-                                            st.session_state.generated_image = output_paths["front"]
                                     else:
                                         # Single image
                                         output_path = image_processor.save_result_image(generated_result)
                                         st.session_state.generated_image = output_path
                                         st.session_state.generated_images = {"front": output_path}
+                                else:
+                                    st.error("Failed to generate image using predefined model. The system will try to generate from scratch.")
+                                    
+                                    # Fallback to standard options instead of using "Custom" placeholders
+                                    # Use color-changed image if available, otherwise use original image
+                                    source_image = st.session_state.source_image_for_generation
+                                    generated_result = google_integration.generate_image_swap(
+                                        source_image,
+                                        ethnicity="Mixed/Multiracial",  # Default ethnicity instead of "Custom"
+                                        skin_color="Medium",  # Default skin tone instead of "Custom"
+                                        hairstyle="Medium straight",  # Default hairstyle instead of "Custom"
+                                        additional_features=additional_features,
+                                        swap_skin_and_hair=swap_skin_and_hair,
+                                        generate_multiple_poses=generate_multiple_poses,
+                                        use_white_background=st.session_state.use_white_background
+                                    )
+                                    
+                                    if generated_result is not None:
+                                        # Check if we got multiple poses or just one image
+                                        if isinstance(generated_result, dict):
+                                            # Multiple poses
+                                            output_paths = image_processor.save_multiple_pose_images(generated_result)
+                                            st.session_state.generated_images = output_paths
+                                            # Set front view as the main generated image
+                                            if "front" in output_paths:
+                                                st.session_state.generated_image = output_paths["front"]
+                                        else:
+                                            # Single image
+                                            output_path = image_processor.save_result_image(generated_result)
+                                            st.session_state.generated_image = output_path
+                                            st.session_state.generated_images = {"front": output_path}
                     else:
                         # Use standard generation approach
                         if ai_model == "OpenAI GPT-4o & DALL-E":
@@ -342,8 +464,10 @@ with right_col:
                             )
                         else:
                             # Use Google for image generation
+                            # Use color-changed image if available, otherwise use original image
+                            source_image = st.session_state.source_image_for_generation
                             generated_result = google_integration.generate_image_swap(
-                                st.session_state.uploaded_image_path,
+                                source_image,
                                 ethnicity,
                                 height,
                                 body_type,
@@ -351,7 +475,8 @@ with right_col:
                                 hairstyle,
                                 additional_features,
                                 swap_skin_and_hair=swap_skin_and_hair,
-                                generate_multiple_poses=generate_multiple_poses
+                                generate_multiple_poses=generate_multiple_poses,
+                                use_white_background=st.session_state.use_white_background
                             )
                         
                         if generated_result is not None:
@@ -426,5 +551,6 @@ st.markdown("---")
 st.markdown(
     "This application uses AI to transform fashion model images while preserving apparel details. "
     "The transformation process changes the model's ethnicity and facial features but maintains the "
-    "clothing, background, and overall composition."
+    "clothing, background, and overall composition. You can also change the color of apparel items "
+    "using the color swatches provided."
 )
