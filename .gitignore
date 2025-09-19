@@ -19,6 +19,7 @@ build/
 .env
 *.pem
 config.ini
+.streamlit/secrets.toml
 
 # Logs
 *.log
