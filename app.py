@@ -255,6 +255,36 @@ with left_col:
             help="Toggle ON to use a white background instead of the default light grey background"
         )
         
+        # Image quality enhancement options
+        st.markdown("#### Image Quality Options")
+        
+        st.session_state.preserve_max_quality = st.toggle(
+            "Preserve maximum image quality",
+            value=True,
+            help="Toggle ON to maintain the highest possible image quality during processing (may increase processing time)"
+        )
+        
+        st.session_state.use_ai_enhancement = st.toggle(
+            "Apply AI enhancement after generation",
+            value=False,
+            help="Toggle ON to apply AI-based image enhancement to the final result (improves detail and sharpness)"
+        )
+        
+        if st.session_state.use_ai_enhancement:
+            st.session_state.enhancement_method = st.selectbox(
+                "Enhancement Method",
+                ["Default", "Super Resolution", "Advanced Sharpening", "Pixelcut (requires API key)"],
+                help="Choose which AI enhancement method to apply to the final image"
+            )
+            
+            if st.session_state.enhancement_method == "Pixelcut (requires API key)":
+                pixelcut_api_key = st.text_input(
+                    "Pixelcut API Key", 
+                    type="password",
+                    help="Enter your Pixelcut API key to use their service for image enhancement"
+                )
+                st.session_state.pixelcut_api_key = pixelcut_api_key if pixelcut_api_key else None
+        
         additional_features = st.text_area(
             "Additional Features or Instructions",
             placeholder="E.g., specific eye color, facial features, etc.",
@@ -495,6 +525,57 @@ with right_col:
                                 st.session_state.generated_images = {"front": output_path}
                         else:
                             st.error("Failed to generate image. Please try again or switch to a different AI model.")
+                    
+                    # Apply AI image enhancement if enabled
+                    if "use_ai_enhancement" in st.session_state and st.session_state.use_ai_enhancement:
+                        from image_enhancer import enhance_image
+                        
+                        # Show enhancement notification
+                        enhancement_method = st.session_state.get("enhancement_method", "Default")
+                        with st.spinner(f"Applying {enhancement_method} image enhancement..."):
+                            
+                            # Process each image in the generated images
+                            enhanced_images = {}
+                            for pose, image_path in st.session_state.generated_images.items():
+                                # Map enhancement method to the actual method
+                                method_map = {
+                                    "Default": "ai_upscale",
+                                    "Super Resolution": "super_resolution",
+                                    "Advanced Sharpening": "sharpen",
+                                    "Pixelcut (requires API key)": "pixelcut"
+                                }
+                                
+                                method = method_map.get(enhancement_method, "ai_upscale")
+                                
+                                # Additional parameters for specific methods
+                                kwargs = {}
+                                if method == "pixelcut" and hasattr(st.session_state, "pixelcut_api_key"):
+                                    kwargs["api_key"] = st.session_state.pixelcut_api_key
+                                    kwargs["quality"] = "high"
+                                elif method == "super_resolution":
+                                    kwargs["scale"] = 2
+                                    kwargs["model"] = "edsr"
+                                elif method == "sharpen":
+                                    kwargs["amount"] = 2.0
+                                    
+                                # Apply enhancement
+                                try:
+                                    enhanced_img = enhance_image(image_path, method=method, **kwargs)
+                                    # Save the enhanced image
+                                    enhanced_path = image_path.replace(".png", "_enhanced.png")
+                                    enhanced_img.save(enhanced_path, format="PNG", compress_level=1)
+                                    # Replace the original image with the enhanced version
+                                    enhanced_images[pose] = enhanced_path
+                                    print(f"Enhanced {pose} image saved to {enhanced_path}")
+                                except Exception as e:
+                                    print(f"Error enhancing {pose} image: {str(e)}")
+                                    enhanced_images[pose] = image_path  # Keep original if enhancement fails
+                            
+                            # Update the generated images with enhanced versions
+                            st.session_state.generated_images = enhanced_images
+                            # Update the main generated image (front view)
+                            if "front" in enhanced_images:
+                                st.session_state.generated_image = enhanced_images["front"]
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
                 

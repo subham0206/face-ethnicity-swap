@@ -270,9 +270,9 @@ class ImagenHandler:
     Handler for Google's Imagen API to generate images
     """
     
-    def __init__(self, api_key=None, timeout=60, imagen_model="imagegeneration@002", gemini_image_model="gemini-2.5-flash-image-preview"):
+    def __init__(self, api_key=None, timeout=120, imagen_model="imagegeneration@002", gemini_image_model="gemini-2.5-flash-image-preview"):
         """
-        Initialize the Imagen handler
+        Initialize the Imagen handler with maximum quality settings
         
         Args:
             api_key: Google API key
@@ -297,6 +297,17 @@ class ImagenHandler:
         self.timeout = timeout
         self.imagen_model = imagen_model
         self.gemini_image_model = gemini_image_model
+        
+        # Default generation config for high quality output
+        self.high_quality_config = {
+            "temperature": 0.1,  # Lower temperature for more precise results
+            "response_mime_type": "image/png",  # Force PNG for better quality
+            "image_generation_config": {
+                "compression_quality": 100,  # Maximum quality (0-100)
+                "model_version": "3.0.0",  # Latest model version for best quality
+                "upscale_resolution": True  # Enable internal upscaling if available
+            }
+        }
         
         # Configure Google API with the key if provided
         if api_key:
@@ -639,6 +650,7 @@ class ImagenHandler:
     def change_apparel_color(self, image_path, swatch_path, apparel_type="top"):
         """
         Change the color of apparel in an image based on a color swatch
+        with maximum quality preservation
         
         Args:
             image_path: Path to the image with the apparel
@@ -649,23 +661,23 @@ class ImagenHandler:
             PIL Image object with the color-changed apparel
         """
         try:
-            # Load the images
+            # Load the images with highest quality settings
             apparel_img = Image.open(image_path)
             swatch_img = Image.open(swatch_path)
             
-            # Convert images to bytes
+            # Convert images to bytes with minimal compression for best quality
             apparel_buffer = BytesIO()
-            apparel_img.save(apparel_buffer, format="PNG")
+            apparel_img.save(apparel_buffer, format="PNG", compress_level=1)
             apparel_bytes = apparel_buffer.getvalue()
             
             swatch_buffer = BytesIO()
-            swatch_img.save(swatch_buffer, format="PNG")
+            swatch_img.save(swatch_buffer, format="PNG", compress_level=1)
             swatch_bytes = swatch_buffer.getvalue()
             
             # Get color name from swatch path
             color_name = os.path.basename(swatch_path).replace("PNG-", "").replace(".png", "").replace(".jpg", "").replace(".jpeg", "")
             
-            # Create a specific prompt for changing apparel color
+            # Create a specific prompt for changing apparel color with high quality focus
             prompt = f"""
             Change the color of the {apparel_type} in the first image to match the color in the second image (a {color_name} color swatch).
             
@@ -678,21 +690,32 @@ class ImagenHandler:
             - Keep lighting and shadows natural and consistent with the original image
             - Ensure the new color appears natural and realistic on the fabric
             - Maintain the exact same image resolution and dimensions
+            - CRITICAL: Preserve all high-resolution details and ensure the output is maximum quality
+            - Generate at the highest resolution possible to allow for detailed zooming
             
             Generate a high-quality professional fashion photograph with the new color applied.
             """
             
             # Print debug info
-            print(f"DEBUG: Changing {apparel_type} color to {color_name}")
+            print(f"DEBUG: Changing {apparel_type} color to {color_name} at high quality")
             print(f"DEBUG: Original image size: {apparel_img.size}")
+            
+            # Request high-quality output specifically
+            generation_config = {
+                "temperature": 0.2,  # Lower temperature for more precise results
+                "response_mime_type": "image/png",  # Force PNG for better quality
+            }
             
             # Use the Gemini image model for the color change
             model = genai.GenerativeModel(self.gemini_image_model)
-            response = model.generate_content([
-                prompt,
-                {"mime_type": "image/png", "data": apparel_bytes},
-                {"mime_type": "image/png", "data": swatch_bytes}
-            ])
+            response = model.generate_content(
+                [
+                    prompt,
+                    {"mime_type": "image/png", "data": apparel_bytes},
+                    {"mime_type": "image/png", "data": swatch_bytes}
+                ],
+                generation_config=generation_config
+            )
             
             # Process the response
             if hasattr(response, 'candidates') and response.candidates:

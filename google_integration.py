@@ -63,6 +63,11 @@ def generate_image_swap(
         # Debug logging
         print(f"DEBUG: Starting image generation with source image: {original_image_path}")
         
+        # First preprocess large images to avoid API limits
+        from image_processor import preprocess_image_for_api
+        optimized_image_path = preprocess_image_for_api(original_image_path, max_size=2048)
+        print(f"DEBUG: Using processed image: {optimized_image_path}")
+        
         # Create an ImagenHandler instance with the same API key used for configuration
         imagen_handler = ImagenHandler(google_api_key)
         
@@ -95,7 +100,7 @@ def generate_image_swap(
                     
                     # First generate the front view
                     front_view_img = imagen_handler.swap_face_skin_hair(
-                        original_model_image_path=original_image_path,
+                        original_model_image_path=optimized_image_path,
                         ethnicity=features['ethnicity'] or model_info['name'].split('–')[0].strip(),
                         skin_tone=features['skin_tone'] or skin_color,
                         hairstyle=features['hairstyle'],
@@ -124,21 +129,41 @@ def generate_image_swap(
                             use_white_background=use_white_background
                         )
                         
+                        # Clean up temporary files
+                        try:
+                            os.remove(temp_path)
+                        except:
+                            pass
+                            
                         # Add the other poses to the result dictionary
                         if other_poses:
                             for pose_key, pose_img in other_poses.items():
                                 if pose_key != "front":  # Skip front as we already have it
                                     all_poses[pose_key] = pose_img
                         
+                        # Clean up optimized image if needed
+                        if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                            try:
+                                os.remove(optimized_image_path)
+                            except:
+                                pass
+                                
                         return all_poses
                     else:
+                        # Clean up optimized image if needed
+                        if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                            try:
+                                os.remove(optimized_image_path)
+                            except:
+                                pass
+                                
                         return front_view_img
                 else:
                     # Perform face-only swap (original functionality)
                     print(f"Performing face-only swap with ethnicity: {features['ethnicity']}, skin tone: {features['skin_tone']}")
                     
                     front_view_img = imagen_handler.swap_face_only(
-                        original_model_image_path=original_image_path,
+                        original_model_image_path=optimized_image_path,
                         ethnicity=features['ethnicity'] or model_info['name'].split('–')[0].strip(),
                         skin_tone=features['skin_tone'] or skin_color,
                         additional_features=full_additional_features,
@@ -164,13 +189,33 @@ def generate_image_swap(
                             use_white_background=use_white_background
                         )
                         
+                        # Clean up temporary files
+                        try:
+                            os.remove(temp_path)
+                        except:
+                            pass
+                            
                         if other_poses:
                             for pose_key, pose_img in other_poses.items():
                                 if pose_key != "front":
                                     all_poses[pose_key] = pose_img
                         
+                        # Clean up optimized image if needed
+                        if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                            try:
+                                os.remove(optimized_image_path)
+                            except:
+                                pass
+                                
                         return all_poses
                     else:
+                        # Clean up optimized image if needed
+                        if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                            try:
+                                os.remove(optimized_image_path)
+                            except:
+                                pass
+                                
                         return front_view_img
             else:
                 print(f"Predefined model not found: {predefined_model_gender} - {predefined_model_id}")
@@ -185,7 +230,7 @@ def generate_image_swap(
             final_additional_features = additional_features if additional_features else "No tattoos or identifying marks."
             
             front_view_img = imagen_handler.swap_face_skin_hair(
-                original_model_image_path=original_image_path,
+                original_model_image_path=optimized_image_path,
                 ethnicity=ethnicity,
                 skin_tone=skin_color,
                 hairstyle=hairstyle,
@@ -213,13 +258,33 @@ def generate_image_swap(
                     use_white_background=use_white_background
                 )
                 
+                # Clean up temporary files
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
+                    
                 if other_poses:
                     for pose_key, pose_img in other_poses.items():
                         if pose_key != "front":
                             all_poses[pose_key] = pose_img
                 
+                # Clean up optimized image if needed
+                if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                    try:
+                        os.remove(optimized_image_path)
+                    except:
+                        pass
+                        
                 return all_poses
             else:
+                # Clean up optimized image if needed
+                if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                    try:
+                        os.remove(optimized_image_path)
+                    except:
+                        pass
+                        
                 return front_view_img
         else:
             # Original face-only swap
@@ -229,7 +294,7 @@ def generate_image_swap(
             final_additional_features = additional_features if additional_features else "No tattoos or identifying marks."
             
             front_view_img = imagen_handler.swap_face_only(
-                original_model_image_path=original_image_path,
+                original_model_image_path=optimized_image_path,
                 ethnicity=ethnicity,
                 skin_tone=skin_color,
                 additional_features=final_additional_features,
@@ -255,16 +320,43 @@ def generate_image_swap(
                     use_white_background=use_white_background
                 )
                 
+                # Clean up temporary files
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
+                    
                 if other_poses:
                     for pose_key, pose_img in other_poses.items():
                         if pose_key != "front":
                             all_poses[pose_key] = pose_img
                 
+                # Clean up optimized image if needed
+                if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                    try:
+                        os.remove(optimized_image_path)
+                    except:
+                        pass
+                        
                 return all_poses
             else:
+                # Clean up optimized image if needed
+                if optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                    try:
+                        os.remove(optimized_image_path)
+                    except:
+                        pass
+                        
                 return front_view_img
         
     except Exception as e:
+        # Clean up optimized image on error if needed
+        try:
+            if 'optimized_image_path' in locals() and optimized_image_path != original_image_path and os.path.exists(optimized_image_path):
+                os.remove(optimized_image_path)
+        except:
+            pass
+            
         print(f"Error generating image with Google AI: {str(e)}")
         return None
 
@@ -285,16 +377,30 @@ def change_apparel_color(
         PIL Image object of the generated image with color-changed apparel
     """
     try:
+        # First, preprocess the image to ensure it's not too large
+        from image_processor import preprocess_image_for_api
+        optimized_image_path = preprocess_image_for_api(image_path, max_size=2048)
+        
         # Create an ImagenHandler instance with the validated API key
         imagen_handler = ImagenHandler(google_api_key)
         
         # Change the apparel color using the handler
         print(f"Changing {apparel_type} color using swatch: {os.path.basename(swatch_path)}")
+        print(f"DEBUG: Using processed image: {optimized_image_path}")
+        
         color_changed_img = imagen_handler.change_apparel_color(
-            image_path=image_path,
+            image_path=optimized_image_path,
             swatch_path=swatch_path,
             apparel_type=apparel_type
         )
+        
+        # Clean up the optimized image if it was created
+        if optimized_image_path != image_path and os.path.exists(optimized_image_path):
+            try:
+                os.remove(optimized_image_path)
+                print(f"DEBUG: Cleaned up temporary optimized image")
+            except:
+                pass
         
         return color_changed_img
         
