@@ -9,6 +9,8 @@ from model_manager import ModelManager
 import tempfile
 from image_processor import extract_model_features
 
+print("DEBUG: google_integration.py loaded")
+
 # Load environment variables
 load_dotenv()
 
@@ -365,45 +367,28 @@ def change_apparel_color(
     swatch_path,
     apparel_type="top"
 ):
-    """
-    Change the color of an apparel item in an image to match a color swatch
-    
-    Args:
-        image_path: Path to the original image containing the apparel
-        swatch_path: Path to the color swatch image
-        apparel_type: Type of apparel to change (e.g., "top", "hoodie", "t-shirt")
-    
-    Returns:
-        PIL Image object of the generated image with color-changed apparel
-    """
+    print("DEBUG: Entered change_apparel_color function")
+    print(f"DEBUG: change_apparel_color called with image_path={image_path}, swatch_path={swatch_path}, apparel_type={apparel_type}")
     try:
-        # First, preprocess the image to ensure it's not too large
         from image_processor import preprocess_image_for_api
         optimized_image_path = preprocess_image_for_api(image_path, max_size=2048)
-        
-        # Create an ImagenHandler instance with the validated API key
+        print(f"DEBUG: optimized_image_path={optimized_image_path}")
+        print("DEBUG: Creating ImagenHandler...")
         imagen_handler = ImagenHandler(google_api_key)
-        
-        # Change the apparel color using the handler
-        print(f"Changing {apparel_type} color using swatch: {os.path.basename(swatch_path)}")
-        print(f"DEBUG: Using processed image: {optimized_image_path}")
-        
+        print("DEBUG: ImagenHandler created. Calling change_apparel_color on handler...")
         color_changed_img = imagen_handler.change_apparel_color(
             image_path=optimized_image_path,
             swatch_path=swatch_path,
             apparel_type=apparel_type
         )
-        
-        # Clean up the optimized image if it was created
+        print(f"DEBUG: imagen_handler.change_apparel_color returned: {type(color_changed_img)}")
         if optimized_image_path != image_path and os.path.exists(optimized_image_path):
             try:
                 os.remove(optimized_image_path)
                 print(f"DEBUG: Cleaned up temporary optimized image")
             except:
                 pass
-        
         return color_changed_img
-        
     except Exception as e:
-        print(f"Error changing apparel color with Google AI: {str(e)}")
+        print(f"DEBUG: Error changing apparel color with Google AI: {str(e)}")
         return None

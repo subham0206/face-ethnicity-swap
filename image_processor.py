@@ -94,6 +94,9 @@ def save_result_image(image, output_dir=None):
         Path to the saved image file
     """
     try:
+        # Always resize to 3000x5000 before saving
+        if image.size != (3000, 5000):
+            image = image.resize((3000, 5000), Image.LANCZOS)
         # Create output directory if it doesn't exist or use temp directory
         if output_dir is None:
             output_dir = os.path.join(tempfile.gettempdir(), "face_ethnicity_swap", "output")
@@ -140,6 +143,9 @@ def save_multiple_pose_images(pose_images, output_dir=None):
         
         # Save each pose with a consistent naming pattern
         for pose_key, image in pose_images.items():
+            # Always resize to 3000x5000 before saving
+            if image.size != (3000, 5000):
+                image = image.resize((3000, 5000), Image.LANCZOS)
             filename = f"{base_id}_{pose_key}.png"
             file_path = os.path.join(output_dir, filename)
             

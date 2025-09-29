@@ -78,7 +78,7 @@ model_manager = ModelManager()
 
 # App title and description
 st.markdown('<p class="main-title">B+C Virtual Photoshoot App</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-title">Create professional fashion photos with customizable models</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-title">Create professional fashion photos with customizable models.<br><b>All generated images are automatically upscaled to <span style="color:#FF4B4B">3000x5000 pixels</span> for maximum clarity and print quality.</b></p>', unsafe_allow_html=True)
 
 # Create two columns for the main layout
 left_col, right_col = st.columns([2, 3])
@@ -108,6 +108,47 @@ if "color_changed_image" not in st.session_state:
     st.session_state.color_changed_image = None
 if "use_white_background" not in st.session_state:
     st.session_state.use_white_background = False
+if "preview_result" not in st.session_state:
+    st.session_state.preview_result = None
+
+# --- Preview Logic Triggered at Top Level ---
+if "preview_btn_clicked" not in st.session_state:
+    st.session_state.preview_btn_clicked = False
+if "preview_result" not in st.session_state:
+    st.session_state.preview_result = None
+preview_color = None
+preview_swatch_name = None
+preview_swatch_path = None
+if st.session_state.selected_swatch:
+    preview_color = st.session_state.selected_swatch['name']
+    preview_swatch_name = st.session_state.selected_swatch['name']
+    preview_swatch_path = st.session_state.selected_swatch['path']
+preview_apparel_type = st.session_state.get("preview_apparel_type", "t-shirt")
+if st.session_state.preview_btn_clicked and preview_swatch_path:
+    print(f"DEBUG: Preview button clicked. preview_swatch_path={preview_swatch_path}, preview_apparel_type={preview_apparel_type}, default_model_path=models/male_mixed_race.png")
+    default_model_path = os.path.join("models", "male_mixed_race.png")
+    if not os.path.exists(default_model_path):
+        print("DEBUG: Default model image not found for preview.")
+        st.session_state.preview_result = None
+    else:
+        print(f"DEBUG: About to call google_integration.change_apparel_color...")
+        try:
+            preview_result = google_integration.change_apparel_color(
+                default_model_path,
+                preview_swatch_path,
+                preview_apparel_type
+            )
+            print(f"DEBUG: google_integration.change_apparel_color returned: {type(preview_result)} value: {preview_result}")
+            if preview_result:
+                st.session_state.preview_result = preview_result
+                print("DEBUG: Preview image stored in session state.")
+            else:
+                st.session_state.preview_result = None
+                print("DEBUG: Failed to generate preview image.")
+        except Exception as e:
+            print(f"DEBUG: Exception in google_integration.change_apparel_color: {e}")
+            st.session_state.preview_result = None
+    st.session_state.preview_btn_clicked = False
 
 # Left column - Input controls
 with left_col:
@@ -290,6 +331,18 @@ with left_col:
             placeholder="E.g., specific eye color, facial features, etc.",
             help="Add any additional details or instructions for the AI model"
         )
+        
+        # New: Swatch image uploader for custom color reference
+        uploaded_swatch_file = st.file_uploader(
+            "Upload a color swatch image for apparel color reference (optional)",
+            type=["jpg", "jpeg", "png"],
+            key="uploaded_swatch_file"
+        )
+        if uploaded_swatch_file is not None:
+            st.session_state.uploaded_swatch_path = image_processor.save_uploaded_image(uploaded_swatch_file)
+            st.success("Swatch image uploaded successfully!")
+        else:
+            st.session_state.uploaded_swatch_path = None
     
     # Color swatch selection section - make it collapsible
     with st.expander("Apparel Color Options", expanded=False):
@@ -331,32 +384,33 @@ with left_col:
     )
     
     if generate_btn:
-        # If a swatch is selected, apply the color change before generating the image
-        if st.session_state.selected_swatch and st.session_state.uploaded_image_path:
-            with st.spinner(f"Applying {st.session_state.selected_swatch['name']} color to apparel..."):
+        # If a swatch is selected or uploaded, apply the color change before generating the image
+        swatch_path = None
+        swatch_name = None
+        if st.session_state.uploaded_swatch_path:
+            swatch_path = st.session_state.uploaded_swatch_path
+            swatch_name = "Custom Uploaded Swatch"
+        elif st.session_state.selected_swatch:
+            swatch_path = st.session_state.selected_swatch['path']
+            swatch_name = st.session_state.selected_swatch['name']
+        if swatch_path and st.session_state.uploaded_image_path:
+            with st.spinner(f"Applying {swatch_name} color to apparel..."):
                 try:
-                    print(f"DEBUG: Automatically applying color to apparel using source image: {st.session_state.uploaded_image_path}")
-                    # Apply the color change using the selected swatch
+                    print(f"DEBUG: Applying color to apparel using swatch: {swatch_path}")
                     color_changed_img = google_integration.change_apparel_color(
                         st.session_state.uploaded_image_path,
-                        st.session_state.selected_swatch['path'],
+                        swatch_path,
                         st.session_state.apparel_type
                     )
-                    
                     if color_changed_img:
-                        # Save the color-changed image
                         output_path = image_processor.save_color_changed_image(
                             color_changed_img,
-                            st.session_state.selected_swatch['name'],
+                            swatch_name,
                             st.session_state.uploaded_image_path
                         )
-                        print(f"DEBUG: Saved color-changed image to: {output_path}")
                         st.session_state.color_changed_image = output_path
-                        # Use the color-changed image for further processing
                         st.session_state.source_image_for_generation = output_path
-                        print(f"DEBUG: Set source image for generation to color-changed image: {output_path}")
-                        # Display a success message
-                        st.success(f"Successfully applied {st.session_state.selected_swatch['name']} color to the {st.session_state.apparel_type}.")
+                        st.success(f"Successfully applied {swatch_name} color to the {st.session_state.apparel_type}.")
                     else:
                         st.warning("Failed to apply the selected color. Proceeding with the original image.")
                         st.session_state.color_changed_image = None
@@ -367,7 +421,6 @@ with left_col:
                     st.session_state.color_changed_image = None
                     st.session_state.source_image_for_generation = st.session_state.uploaded_image_path
         else:
-            # No color change requested, use original image
             st.session_state.source_image_for_generation = st.session_state.uploaded_image_path
                     
         # Debug output of available images

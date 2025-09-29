@@ -692,6 +692,7 @@ class ImagenHandler:
             - Maintain the exact same image resolution and dimensions
             - CRITICAL: Preserve all high-resolution details and ensure the output is maximum quality
             - Generate at the highest resolution possible to allow for detailed zooming
+            - The final output image MUST be exactly 3000x5000 pixels in size for maximum clarity and print quality
             
             Generate a high-quality professional fashion photograph with the new color applied.
             """
