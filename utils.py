@@ -272,36 +272,64 @@ def get_style_color_options():
     Returns:
         Tuple with two lists: (styles, colors)
     """
+    # Define default values to return if anything fails
+    default_styles = ["3001", "3005", "3413"]
+    default_colors = ["Black", "White", "Navy", "Royal"]
+    
     try:
-        import pandas as pd
-        import os
+        # Try importing pandas first
+        try:
+            import pandas as pd
+        except ImportError:
+            print("DEBUG: Pandas not installed. Returning default style and color values.")
+            return (default_styles, default_colors)
         
-        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "B+C Styles.xlsx")
-        print(f"DEBUG: Reading styles and colors from {file_path}")
+        # Try multiple possible paths for the Excel file
+        possible_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "B+C Styles.xlsx"),  # Local development path
+            os.path.join(os.getcwd(), "B+C Styles.xlsx"),  # Current working directory
+            "/mount/src/face-ethnicity-swap/B+C Styles.xlsx",  # Streamlit Cloud path
+            "B+C Styles.xlsx"  # Relative path
+        ]
         
-        if not os.path.exists(file_path):
-            print(f"DEBUG: Excel file not found at {file_path}")
-            # Return some default values
-            return (["3001", "3005", "3413"], ["Black", "White", "Navy", "Royal"])
+        # Try each path until we find the file
+        file_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                file_path = path
+                print(f"DEBUG: Found Excel file at: {file_path}")
+                break
+        
+        if not file_path:
+            print(f"DEBUG: Excel file not found. Tried paths: {possible_paths}")
+            return (default_styles, default_colors)
             
         # Read the Excel file
         try:
-            df = pd.read_excel(file_path, sheet_name="style_color")
+            # Try with default engine first
+            try:
+                df = pd.read_excel(file_path, sheet_name="style_color")
+            except Exception as e:
+                print(f"DEBUG: Error with default engine: {str(e)}. Trying with openpyxl engine.")
+                # If that fails, try with openpyxl engine explicitly
+                df = pd.read_excel(file_path, sheet_name="style_color", engine="openpyxl")
             
             # Extract unique values from Style and Color columns
-            styles = sorted(df['Style'].dropna().unique().tolist())
-            colors = sorted(df['Color'].dropna().unique().tolist())
-            
-            print(f"DEBUG: Found {len(styles)} styles and {len(colors)} colors")
-            return (styles, colors)
+            if 'Style' in df.columns and 'Color' in df.columns:
+                styles = sorted(df['Style'].dropna().unique().tolist())
+                colors = sorted(df['Color'].dropna().unique().tolist())
+                
+                print(f"DEBUG: Found {len(styles)} styles and {len(colors)} colors")
+                return (styles, colors)
+            else:
+                print(f"DEBUG: Required columns not found in Excel file. Available columns: {df.columns.tolist()}")
+                return (default_styles, default_colors)
         except Exception as e:
             print(f"DEBUG: Error reading Excel file: {str(e)}")
-            # Return some default values
-            return (["3001", "3005", "3413"], ["Black", "White", "Navy", "Royal"])
-    except ImportError:
-        print("DEBUG: Pandas not installed. Please install with 'pip install pandas openpyxl'")
-        # Return some default values
-        return (["3001", "3005", "3413"], ["Black", "White", "Navy", "Royal"])
+            return (default_styles, default_colors)
+    except Exception as e:
+        print(f"DEBUG: Unexpected error in get_style_color_options: {str(e)}")
+        return (default_styles, default_colors)
 
 class ImagenHandler:
     """
@@ -772,6 +800,78 @@ class ImagenHandler:
             
         except Exception as e:
             print(f"Error changing apparel color: {str(e)}")
+            return None
+
+    def refine_image(self, image_path, refinement_instructions):
+        """
+        Refine an image based on specific user instructions
+        
+        Args:
+            image_path: Path to the image that needs refinement
+            refinement_instructions: Text instructions from the user for refining the image
+            
+        Returns:
+            PIL Image object with refinements applied
+        """
+        try:
+            # Load the original image
+            original_img = Image.open(image_path)
+            
+            # Convert image to bytes
+            buffer = BytesIO()
+            original_img.save(buffer, format="PNG", compress_level=1)  # Minimal compression for quality
+            img_bytes = buffer.getvalue()
+            
+            # Create the prompt for refinement
+            prompt = f"""
+            Refine this fashion model image according to the following instructions:
+            
+            {refinement_instructions}
+            
+            EXTREMELY IMPORTANT REQUIREMENTS:
+            - Apply ONLY the changes specified in the user instructions
+            - Maintain the same model ethnicity and overall appearance
+            - Preserve all clothing details, patterns, and textures unless explicitly instructed to change them
+            - Keep the background consistent unless explicitly instructed to change it
+            - Maintain the same image framing and composition
+            - Generate output in ULTRA HD quality (min 2048x2048 resolution)
+            - Ensure the entire body of the model is visible and not cropped at any edge
+            - The output must maintain professional fashion photography quality
+            - The final output image MUST be exactly 3000x5000 pixels in size for maximum clarity and print quality
+            """
+            
+            # Request high-quality output specifically
+            generation_config = {
+                "temperature": 0.2,  # Lower temperature for more precise results
+                "response_mime_type": "image/png",  # Force PNG for better quality
+            }
+            
+            # Use the Gemini image model for the refinement
+            model = genai.GenerativeModel(self.gemini_image_model)
+            response = model.generate_content(
+                [
+                    prompt,
+                    {"mime_type": "image/png", "data": img_bytes}
+                ],
+                generation_config=generation_config
+            )
+            
+            # Process the response
+            if hasattr(response, 'candidates') and response.candidates:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data.mime_type.startswith('image/'):
+                        image_bytes = part.inline_data.data
+                        refined_img = Image.open(BytesIO(image_bytes))
+                        print(f"DEBUG: Successfully refined image, new size: {refined_img.size}")
+                        return refined_img
+                    
+            print(f"DEBUG: Error - No valid image found in the API response")
+            return None
+            
+        except Exception as e:
+            import traceback
+            print(f"DEBUG: Error in refine_image function: {str(e)}")
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
             return None
 
 def get_pose_options():

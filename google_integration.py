@@ -392,3 +392,48 @@ def change_apparel_color(
     except Exception as e:
         print(f"DEBUG: Error changing apparel color with Google AI: {str(e)}")
         return None
+
+def refine_image(
+    image_path,
+    refinement_instructions
+):
+    """
+    Refine a generated image based on user input/feedback using Google's Gemini API
+    
+    Args:
+        image_path: Path to the image that needs refinement
+        refinement_instructions: Text instructions from the user for refining the image
+        
+    Returns:
+        PIL Image object with refinements applied or None if refinement failed
+    """
+    print("DEBUG: Entered refine_image function")
+    print(f"DEBUG: refine_image called with image_path={image_path}, instructions={refinement_instructions}")
+    
+    try:
+        from image_processor import preprocess_image_for_api
+        optimized_image_path = preprocess_image_for_api(image_path, max_size=2048)
+        print(f"DEBUG: optimized_image_path={optimized_image_path}")
+        
+        print("DEBUG: Creating ImagenHandler...")
+        imagen_handler = ImagenHandler(google_api_key)
+        print("DEBUG: ImagenHandler created. Calling refine_image on handler...")
+        
+        refined_img = imagen_handler.refine_image(
+            image_path=optimized_image_path,
+            refinement_instructions=refinement_instructions
+        )
+        print(f"DEBUG: imagen_handler.refine_image returned: {type(refined_img)}")
+        
+        # Clean up temporary files if created
+        if optimized_image_path != image_path and os.path.exists(optimized_image_path):
+            try:
+                os.remove(optimized_image_path)
+                print(f"DEBUG: Cleaned up temporary optimized image")
+            except:
+                pass
+                
+        return refined_img
+    except Exception as e:
+        print(f"DEBUG: Error refining image with Google AI: {str(e)}")
+        return None
