@@ -265,6 +265,44 @@ def get_available_swatches():
     
     return swatches
 
+def get_style_color_options():
+    """
+    Read Style and Color options from the B+C Styles.xlsx file
+    
+    Returns:
+        Tuple with two lists: (styles, colors)
+    """
+    try:
+        import pandas as pd
+        import os
+        
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "B+C Styles.xlsx")
+        print(f"DEBUG: Reading styles and colors from {file_path}")
+        
+        if not os.path.exists(file_path):
+            print(f"DEBUG: Excel file not found at {file_path}")
+            # Return some default values
+            return (["3001", "3005", "3413"], ["Black", "White", "Navy", "Royal"])
+            
+        # Read the Excel file
+        try:
+            df = pd.read_excel(file_path, sheet_name="style_color")
+            
+            # Extract unique values from Style and Color columns
+            styles = sorted(df['Style'].dropna().unique().tolist())
+            colors = sorted(df['Color'].dropna().unique().tolist())
+            
+            print(f"DEBUG: Found {len(styles)} styles and {len(colors)} colors")
+            return (styles, colors)
+        except Exception as e:
+            print(f"DEBUG: Error reading Excel file: {str(e)}")
+            # Return some default values
+            return (["3001", "3005", "3413"], ["Black", "White", "Navy", "Royal"])
+    except ImportError:
+        print("DEBUG: Pandas not installed. Please install with 'pip install pandas openpyxl'")
+        # Return some default values
+        return (["3001", "3005", "3413"], ["Black", "White", "Navy", "Royal"])
+
 class ImagenHandler:
     """
     Handler for Google's Imagen API to generate images
@@ -616,7 +654,10 @@ class ImagenHandler:
                 - Use high-end fashion photography lighting and composition
                 - Ensure the full body is visible, including the full length of the clothing
                 - Maintain a consistent framing across all poses
-                
+                - NO blur anywhere in the image (everything must be sharp and clear)
+                - The model’s face must be clean and natural with **no stray hairs, especially no hair on the nose**
+                - Resolution, sharpness, and clarity must be consistent across the entire image (no uneven patches or distortions)
+
                 Generate a high-quality, professional fashion photograph.
                 """
                 

@@ -110,6 +110,14 @@ if "use_white_background" not in st.session_state:
     st.session_state.use_white_background = False
 if "preview_result" not in st.session_state:
     st.session_state.preview_result = None
+# New session state items for style and color selection
+if "selected_style" not in st.session_state:
+    st.session_state.selected_style = None
+if "selected_color_name" not in st.session_state:
+    st.session_state.selected_color_name = None
+if "current_year" not in st.session_state:
+    import datetime
+    st.session_state.current_year = datetime.datetime.now().year
 
 # --- Preview Logic Triggered at Top Level ---
 if "preview_btn_clicked" not in st.session_state:
@@ -375,6 +383,51 @@ with left_col:
                 st.info(f"Selected color '{st.session_state.selected_swatch['name']}' will be applied when you click 'Generate Transformed Image'")
         else:
             st.warning("No color swatches found in the swatches directory.")
+    
+    # Style and Color Selection from Excel file
+    with st.expander("Style and Color Selection", expanded=True):
+        st.markdown("#### Select Style and Color for Image Naming")
+        
+        # Get styles and colors from Excel file
+        styles, colors = utils.get_style_color_options()
+        
+        # Create searchable dropdowns for Style and Color
+        col1, col2 = st.columns(2)
+        with col1:
+            # Style dropdown with search functionality
+            if styles:
+                style_search = st.text_input("Search Style", key="style_search")
+                filtered_styles = [style for style in styles if style_search.lower() in str(style).lower()] if style_search else styles
+                
+                if filtered_styles:
+                    st.session_state.selected_style = st.selectbox(
+                        "Select Style #",
+                        filtered_styles,
+                        index=0 if filtered_styles and st.session_state.selected_style not in filtered_styles else filtered_styles.index(st.session_state.selected_style) if st.session_state.selected_style in filtered_styles else 0
+                    )
+                else:
+                    st.warning("No matching styles found.")
+            else:
+                st.warning("No styles available from the Excel file.")
+                
+        with col2:
+            # Color dropdown with search functionality
+            if colors:
+                color_search = st.text_input("Search Color", key="color_search")
+                filtered_colors = [color for color in colors if color_search.lower() in str(color).lower()] if color_search else colors
+                
+                if filtered_colors:
+                    st.session_state.selected_color_name = st.selectbox(
+                        "Select Color",
+                        filtered_colors,
+                        index=0 if filtered_colors and st.session_state.selected_color_name not in filtered_colors else filtered_colors.index(st.session_state.selected_color_name) if st.session_state.selected_color_name in filtered_colors else 0
+                    )
+                else:
+                    st.warning("No matching colors found.")
+            else:
+                st.warning("No colors available from the Excel file.")
+        
+        st.info(f"Selected: Style #{st.session_state.selected_style or '___'} / Color: {st.session_state.selected_color_name or '___'}")
     
     # Generate button
     generate_btn = st.button(
@@ -650,31 +703,64 @@ with right_col:
                     with pose_columns[i]:
                         st.image(path, caption=pose_labels.get(pose, pose.capitalize()), use_column_width=True)
                         
-                        # Add download button for each pose
+                        # Add download button for each pose with new naming convention
                         with open(path, "rb") as file:
+                            # Determine pose number
+                            pose_number = "0" if pose == "profile" else "1" if pose == "front" else "2" if pose == "three_quarter" else "3" if pose == "back" else "0"
+                            
+                            # Determine gender code (M/F)
+                            gender_code = "M" if st.session_state.selected_gender == "Male" else "F"
+                            
+                            # Construct filename using the naming convention:
+                            # Style#_ColorName_Sex_Year_PoseNumber
+                            style = st.session_state.selected_style or "Style"
+                            color = st.session_state.selected_color_name or "Color"
+                            year = st.session_state.current_year
+                            
+                            file_name = f"{style}_{color}_{gender_code}_{year}_{pose_number}.png"
+                            
                             st.download_button(
                                 label=f"Download {pose_labels.get(pose, pose.capitalize())}",
                                 data=file,
-                                file_name=f"model_{pose}.png",
-                                mime="image/png"
+                                file_name=file_name,
+                                mime="image/png",
+                                help=f"Download as {file_name}"
                             )
             else:
                 # Display single image (front view only)
-                st.image(
-                    st.session_state.generated_image, 
-                    caption="Transformed Image", 
-                    use_column_width=True
-                )
-                
-                # Download button for the generated image
-                with open(st.session_state.generated_image, "rb") as file:
-                    btn = st.download_button(
-                        label="Download Transformed Image",
-                        data=file,
-                        file_name="transformed_model.png",
-                        mime="image/png",
-                        use_container_width=True
+                if st.session_state.generated_image is not None and os.path.exists(st.session_state.generated_image):
+                    st.image(
+                        st.session_state.generated_image, 
+                        caption="Transformed Image", 
+                        width="stretch"
                     )
+                    
+                    # Download button for the generated image with new naming convention
+                    with open(st.session_state.generated_image, "rb") as file:
+                        # For single images, default to front view (pose 1)
+                        pose_number = "1"  # Front-facing is 1
+                        
+                        # Determine gender code (M/F)
+                        gender_code = "M" if st.session_state.selected_gender == "Male" else "F"
+                        
+                        # Construct filename using the naming convention:
+                        # Style#_ColorName_Sex_Year_PoseNumber
+                        style = st.session_state.selected_style or "Style"
+                        color = st.session_state.selected_color_name or "Color"
+                        year = st.session_state.current_year
+                        
+                        file_name = f"{style}_{color}_{gender_code}_{year}_{pose_number}.png"
+                        
+                        st.download_button(
+                            label="Download Transformed Image",
+                            data=file,
+                            file_name=file_name,
+                            mime="image/png",
+                            width="stretch",
+                            help=f"Download as {file_name}"
+                        )
+                else:
+                    st.error("Generated image not found or not ready. There might have been an issue with the image generation process.")
         elif st.session_state.uploaded_image_path is not None and not generate_btn and not st.session_state.processing:
             st.info("Click 'Generate Transformed Image' to see the result.")
         else:
